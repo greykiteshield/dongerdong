@@ -309,20 +309,25 @@ class Donger(BaseClient):
 
             elif target == config['nick']: # private message
                 if command == "join" and self.gameRunning and not self.deathmatch:
-                    if source in self.turnlist:
-                        self.notice(source, "You already played in this game.")
+                    if source in self.turnlist and self.players[source.lower()]['zombie'] == True:
+                        self.notice(source, "You already played in this game and died twice...")
                         return
                     
                     if self.versusone:
                         self.notice(source, "You can't join this fight")
                         return
-                    
                     alivePlayers = [self.players[player]['hp'] for player in self.players if self.players[player]['hp'] > 0]
-                    health = int(sum(alivePlayers) / len(alivePlayers))
+                    if source in self.turnlist and self.players[source.lower()]['zombie'] == False:
+                        health = int((sum(alivePlayer) / len(alivePlayers))/2)
+                        self.players[source.lower()] = {'hp': health, 'heals': 0, 'zombie': True, 'nick': source, 'praised': False, 'gdr': 1}
+                        self.message(self.channel, "\002{0}\002 JOINS THE FIGHT AS A ZOMBIE (\002{1}\002HP)".format(source.upper(), health))
+                    else:
+                        health = int(sum(alivePlayers) / len(alivePlayers))
+                        self.players[source.lower()] = {'hp': health, 'heals': 4, 'zombie': False, 'nick': source, 'praised': False, 'gdr': 1}
+                        self.message(self.channel, "\002{0}\002 JOINS THE FIGHT (\002{1}\002HP)".format(source.upper(), health))
                     self.countStat(source, "joins")
                     self.turnlist.append(source)
-                    self.players[source.lower()] = {'hp': health, 'heals': 4, 'zombie': False, 'nick': source, 'praised': False, 'gdr': 1}
-                    self.message(self.channel, "\002{0}\002 JOINS THE FIGHT (\002{1}\002HP)".format(source.upper(), health))
+                    
                     self.set_mode(self.channel, "+v", source)
 
             #Rate limiting
@@ -504,13 +509,13 @@ class Donger(BaseClient):
             if not critical: # if it isn't an artificial crit, shout
                 self.ascii("CRITICAL")
         else:
-             if not self.players[target.lower()]['gdr'] == 1:
+            if not self.players[target.lower()]['gdr'] == 1:
                  damage = int(damage/(self.players[target.lower()]['gdr'] * self.gdrmodifier))
         
         # In case player is hitting themselves
         sourcehealth = self.players[source.lower()]['hp']
-        
-        self.players[source.lower()]['heals'] = 5
+        if not self.players[source.lower()]['zombie']:
+            self.players[source.lower()]['heals'] = 5
         self.players[target.lower()]['hp'] -= damage
         self.players[target.lower()]['gdr'] += 1
 
@@ -614,6 +619,7 @@ class Donger(BaseClient):
         if self.players[self.turnlist[self.currentTurn].lower()]['hp'] > 0: # it's alive!
             self.turnStart = time.time()
             self.poke = False
+            self.players[self.turnlist[self.currentTurn].lower()]['gdr'] = 1
             self.message(self.channel, "It's \002{0}\002's turn.".format(self.turnlist[self.currentTurn]))
             if self.turnlist[self.currentTurn] == config['nick']:
                 self.processAI()
